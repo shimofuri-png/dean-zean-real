@@ -1,0 +1,867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>随机爵士乐生成器 · Random Jazz Generator</title>
+<style>
+  :root{
+    --bg:#0c0f1a; --bg2:#141a2e; --card:#1a2140cc; --gold:#e8b64c; --gold2:#f5d67b;
+    --cream:#f3ead8; --muted:#9aa3c7; --accent:#5eead4; --red:#ff6b6b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    background:radial-gradient(1200px 800px at 20% -10%, #2b3a6b 0%, transparent 60%),
+               radial-gradient(1000px 700px at 110% 10%, #4a2c5a 0%, transparent 55%),
+               linear-gradient(180deg,var(--bg),#070a14);
+    color:var(--cream); min-height:100vh;
+  }
+  header{max-width:1100px;margin:0 auto;padding:28px 20px 10px;display:flex;gap:18px;align-items:center}
+  .vinyl{
+    width:84px;height:84px;border-radius:50%;flex:0 0 84px;position:relative;
+    background:repeating-radial-gradient(circle at center,#000 0 2px,#1a1a1a 2px 4px);
+    border:3px solid #222; box-shadow:0 0 0 3px var(--gold),0 10px 30px #000a;
+  }
+  .vinyl::after{
+    content:"";position:absolute;inset:28px;border-radius:50%;
+    background:radial-gradient(circle,var(--gold) 0 8px,var(--red) 9px 14px,#111 15px);
+  }
+  .vinyl.playing{animation:spin 2.2s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  h1{margin:0;font-size:28px;letter-spacing:1px}
+  h1 span{color:var(--gold2)}
+  .sub{color:var(--muted);margin-top:6px;font-size:14px;line-height:1.6}
+  main{max-width:1100px;margin:0 auto;padding:10px 20px 40px;display:grid;grid-template-columns:340px 1fr;gap:16px}
+  @media(max-width:880px){main{grid-template-columns:1fr}}
+  .card{
+    background:linear-gradient(180deg,#1d2547cc,#12172ecc);
+    border:1px solid #ffffff1f;border-radius:16px;padding:16px;
+    box-shadow:0 10px 30px #0007;backdrop-filter:blur(8px);
+  }
+  .card h2{margin:0 0 10px;font-size:15px;color:var(--gold2);letter-spacing:1px}
+  label{font-size:13px;color:var(--muted);display:flex;justify-content:space-between;margin:12px 0 6px}
+  label b{color:var(--cream)}
+  select,input[type=text],input[type=number]{
+    width:100%;background:#0b1022;color:var(--cream);
+    border:1px solid #ffffff2a;border-radius:10px;padding:9px 10px;font-size:14px;outline:none;
+  }
+  input[type=range]{width:100%;accent-color:var(--gold)}
+  .row{display:flex;gap:8px}
+  .row>*{flex:1}
+  button{
+    border:0;border-radius:12px;padding:11px 12px;font-size:14px;font-weight:700;cursor:pointer;
+    transition:.15s;
+  }
+  .play{background:linear-gradient(180deg,var(--gold2),var(--gold));color:#231a05}
+  .play:hover{filter:brightness(1.08)}
+  .ghost{background:#ffffff14;color:var(--cream);border:1px solid #ffffff22}
+  .ghost:hover{background:#ffffff22}
+  .btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .btn-grid .wide{grid-column:1/-1}
+  .mix{display:grid;grid-template-columns:1fr 1fr;gap:4px 12px}
+  #leadSheet{display:grid;gap:8px;margin-top:10px}
+  .bars{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  @media(max-width:600px){.bars{grid-template-columns:repeat(2,1fr)}}
+  .bar{
+    background:#0b1022;border:1px solid #ffffff1e;border-radius:10px;padding:8px 9px;min-height:58px;
+    position:relative;overflow:hidden;
+  }
+  .bar.active{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold),0 0 18px #e8b64c55}
+  .bar .n{position:absolute;top:6px;right:8px;font-size:11px;color:var(--muted)}
+  .bar .ch{font-size:16px;font-weight:800;color:#fff}
+  .bar .rm{font-size:12px;color:var(--accent);margin-top:2px}
+  #nowPlaying{font-size:13px;color:var(--muted);line-height:1.7}
+  #nowPlaying strong{color:#fff;font-size:22px}
+  canvas{width:100%;height:140px;background:#070b1a;border-radius:12px;border:1px solid #ffffff18}
+  .tag{display:inline-block;font-size:12px;background:#ffffff14;border:1px solid #ffffff22;border-radius:999px;padding:3px 10px;margin:2px 4px 2px 0;color:var(--cream)}
+  .theory{font-size:13px;color:#c9d1f2;line-height:1.8}
+  .theory code{background:#0006;padding:1px 6px;border-radius:6px;color:var(--gold2)}
+  footer{max-width:1100px;margin:0 auto;padding:0 20px 30px;color:var(--muted);font-size:12px;line-height:1.7}
+  .check{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--cream);margin-top:10px}
+</style>
+</head>
+<body>
+<header>
+  <div class="vinyl" id="vinyl"></div>
+  <div>
+    <h1>随机爵士乐生成器 <span>· JAZZ LAB</span></h1>
+    <div class="sub">每次点击都是一首新曲：ii–V–I 进行 · Walking Bass · Swing Ride · 动机构思的萨克斯即兴。<br>纯 Web Audio 合成，单文件离线可玩，可导出 MIDI 到 DAW 继续编曲。</div>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>🎛 作曲控制</h2>
+    <label>调性 Key <b id="keyVal">随机</b></label>
+    <select id="keySel">
+      <option value="-1">🎲 随机调（推荐）</option>
+      <option value="0">C</option><option value="1">Db</option><option value="2">D</option>
+      <option value="3">Eb</option><option value="4">E</option><option value="5">F</option>
+      <option value="6">Gb</option><option value="7">G</option><option value="8">Ab</option>
+      <option value="9">A</option><option value="10">Bb</option><option value="11">B</option>
+    </select>
+
+    <label>曲式 Form</label>
+    <select id="formSel">
+      <option value="blues12">🎺 十二小节爵士布鲁斯 (12-Bar Jazz Blues)</option>
+      <option value="standard16" selected>🎹 标准曲 ii-V-I 循环 (16 Bars)</option>
+      <option value="aaba32">🎷 AABA 标准曲 (32 Bars · 含 Bridge 转调)</option>
+      <option value="modal8">🌙 摩登模态 Vamp (8 Bars · So What 风)</option>
+    </select>
+
+    <label>速度 Tempo <b><span id="bpmVal">132</span> BPM</b></label>
+    <input type="range" id="bpm" min="70" max="210" value="132">
+
+    <label>摇摆 Swing <b><span id="swingVal">62</span>%</b></label>
+    <input type="range" id="swing" min="50" max="72" value="62">
+
+    <label>主奏乐器 Solo Voice</label>
+    <select id="voiceSel">
+      <option value="sax">🎷 次中音萨克斯 (Sax)</option>
+      <option value="trumpet">🎺 小号 (Trumpet)</option>
+      <option value="guitar">🎸 爵士吉他 (Guitar)</option>
+      <option value="vibes">✨ 颤音琴 (Vibraphone)</option>
+    </select>
+
+    <div class="row">
+      <div>
+        <label>随机种子 Seed</label>
+        <input type="number" id="seed" value="12345">
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button class="ghost" id="diceSeed" style="width:100%">🎲 掷种子</button>
+      </div>
+    </div>
+
+    <div class="mix">
+      <div><label>钢琴 <b id="vPianoVal">70%</b></label><input type="range" id="vPiano" min="0" max="100" value="70"></div>
+      <div><label>贝斯 <b id="vBassVal">85%</b></label><input type="range" id="vBass" min="0" max="100" value="85"></div>
+      <div><label>鼓 <b id="vDrumVal">80%</b></label><input type="range" id="vDrum" min="0" max="100" value="80"></div>
+      <div><label>主奏 <b id="vLeadVal">90%</b></label><input type="range" id="vLead" min="0" max="100" value="90"></div>
+    </div>
+
+    <label class="check"><input type="checkbox" id="varyChorus" checked style="width:auto"> 每轮 Chorus 自动变奏即兴（像真乐手）</label>
+    <label class="check"><input type="checkbox" id="bluesy" checked style="width:auto"> 加入蓝调音与半音趋近（更“爵”）</label>
+
+    <div class="btn-grid">
+      <button class="play wide" id="playBtn">▶ 播放 / Play</button>
+      <button class="ghost" id="newSong">✨ 写一首新曲</button>
+      <button class="ghost" id="nextChorus">🔁 换一段即兴</button>
+      <button class="ghost" id="midiBtn">⬇ 导出 MIDI</button>
+      <button class="ghost" id="copyBtn">📋 复制和弦</button>
+    </div>
+  </section>
+
+  <section style="display:flex;flex-direction:column;gap:16px">
+    <div class="card">
+      <h2>🎼 LEAD SHEET · 即时乐谱</h2>
+      <div id="nowPlaying">按播放开始你的爵士俱乐部之夜…</div>
+      <div id="leadSheet"><div class="bars" id="bars"></div></div>
+      <div style="margin-top:10px" id="tags"></div>
+    </div>
+    <div class="card">
+      <h2>📊 现场频谱 · LIVE</h2>
+      <canvas id="scope" width="800" height="140"></canvas>
+      <p class="theory" id="explain"></p>
+    </div>
+    <div class="card">
+      <h2>📖 这首歌是怎么“想”出来的？</h2>
+      <p class="theory">
+        1) <b>和声</b>：从 <code>ii – V – I</code> 出发，在五度圈上随机游走，V 级随机变 <code>7alt / 三全音替代(bII7)</code>，
+        结尾用 <code>I – VI – ii – V Turnaround</code> 回家，保证“处处有爵味，处处能解决”。<br>
+        2) <b>贝斯</b>：Walking Bass —— 强拍给根音/和弦音，弱拍用音阶+半音趋近下一根音，第 4 拍 70% 半音趋近。<br>
+        3) <b>钢琴</b>：Rootless Voicing（3-7-9-13），只在反拍“点缀”，留白才是 Comping。<br>
+        4) <b>鼓</b>：Ride 演奏 <code>Spang-Spang-a-lang</code> Swing，军鼓随机 comping，2、4 拍踩镲。<br>
+        5) <b>即兴</b>：先写 2 小节动机（motif），后面做移位 / 倒影 / 节奏错位发展 + 蓝调lick + 包围音（enclosure），
+        乐句之间留呼吸，下一 Chorus 自动变奏。
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer>单文件 · 零依赖 · 离线可用 · Web Audio 合成 · 支持 Chrome / Edge / Safari。导出 MIDI 可拖入 Ableton / Logic / FL 继续玩。祝你有一个摇摆的夜晚 🎶</footer>
+
+<script>
+"use strict";
+/* ============ 工具 ============ */
+const NOTE_NAMES = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+let R = Math.random;
+const ri=(a,b)=>a+Math.floor(R()*(b-a+1));
+const pick=arr=>arr[Math.floor(R()*arr.length)];
+const choiceW=pairs=>{let s=pairs.reduce((x,p)=>x+p[1],0),r=R()*s;for(const p of pairs){if((r-=p[1])<=0)return p[0]}return pairs[0][0]};
+const midiHz=m=>440*Math.pow(2,(m-69)/12);
+const midiName=m=>NOTE_NAMES[((m%12)+12)%12]+(Math.floor(m/12)-1);
+const pcName=pc=>NOTE_NAMES[((pc%12)+12)%12];
+
+/* ============ 和声理论 ============ */
+const QUALITY = {
+  'maj7':{tones:[0,4,7,11], scale:[0,2,4,5,7,9,11]},
+  'm7':{tones:[0,3,7,10], scale:[0,2,3,5,7,9,10]},
+  '7':{tones:[0,4,7,10], scale:[0,2,4,5,7,9,10]},
+  '7alt':{tones:[0,4,7,10], scale:[0,1,3,4,6,8,10]},
+  'm7b5':{tones:[0,3,6,10], scale:[0,2,3,5,6,8,10]},
+  'dim7':{tones:[0,3,6,9], scale:[0,2,3,5,6,8,9,11]},
+  '6':{tones:[0,4,7,9], scale:[0,2,4,5,7,9,11]}
+};
+const SYM={'maj7':'maj7','m7':'m7','7':'7','7alt':'7alt','m7b5':'m7b5','dim7':'°7','6':'6'};
+
+function chordName(root,q){return pcName(root)+(SYM[q]||q)}
+function romanOf(key,ch){
+  const iv=((ch.root-key)%12+12)%12;
+  const deg={0:'I',1:'bII',2:'II',3:'bIII',4:'III',5:'IV',6:'bV',7:'V',8:'bVI',9:'VI',10:'bVII',11:'VII'}[iv];
+  return deg+(SYM[ch.q]||ch.q);
+}
+// 在目标和弦前插入 ii-V
+function iiVto(targetRoot, targetQ){
+  const fifthUp=(targetRoot+7)%12; // 目标的 V 级根音
+  const iiRoot=(fifthUp+7)%12;     // V 的 ii
+  let Vq = R()<0.35 ? '7alt' : '7';
+  if(R()<0.22){ // 三全音替代
+    return [{root:iiRoot,q:'m7'},{root:(fifthUp+6)%12,q:'7alt'}];
+  }
+  return [{root:iiRoot,q:'m7'},{root:fifthUp,q:Vq}];
+}
+
+function generateProgression(key, form){
+  const P=[]; const I=key;
+  const push=(root,q)=>P.push({root:((root%12)+12)%12,q});
+  if(form==='blues12'){
+    // Bird Blues 骨架 + 随机替代
+    const skeleton=[[I,'maj7'],[(I+7)%12,'m7'],[(I+0)%12,'7'],[(I+5)%12,'maj7'],[(I+5)%12,'7'],[I,'maj7'],[(I+2)%12,'m7'],[(I+7)%12,'7'],[I,'maj7'],[(I+9)%12,'m7'],[(I+2)%12,'m7'],[(I+7)%12,'7']];
+    // 更爵士的12小节：2:ii-V of IV, 4:ii-V of ii, 6:#ivo dim, 8:ii-V of V turnaround
+    const plan=[
+      [I, R()<0.5?'maj7':'7'],
+      ...iiVto((I+5)%12,'maj7'),
+      [I, R()<0.5?'maj7':'7'],
+      ...iiVto((I+2)%12,'m7'),
+      [I, R()<0.4?'maj7':'7'], [(I+1)%12,'dim7'],
+      [(I+5)%12,'maj7'], [(I+4)%12,'m7'],
+      ...iiVto(I,'maj7').slice(0,1), ...iiVto(I,'maj7').slice(1),
+      [(I+9)%12,'m7'], [(I+2)%12,'m7'],
+      [I,'maj7'], [(I+7)%12, R()<0.5?'7alt':'7']
+    ];
+    // 压成12小节：一小节一个（ii-V 占两小节时拆分逻辑已天然适配，取前12个并修正）
+    // 简化：直接用 skeleton 但随机 alt/ sub
+    skeleton.forEach(([r,q],idx)=>{
+      let qq=q;
+      if(q==='7'&&R()<0.45) qq='7alt';
+      if(q==='7'&&R()<0.18) { r=(r+6)%12; qq='7alt'; } // 三全音替代
+      if(idx===11&&R()<0.6){ // 结尾 turnaround 一半概率拆成 ii-V
+      }
+      plan.length; // 占位防压缩
+      push(r,qq);
+    });
+    // 结尾两小节做 turnaround: | Imaj7 | ii-V |
+    if(R()<0.75){ P[10]={root:(I+2)%12,q:'m7'}; P[11]={root:(I+7)%12,q: R()<0.5?'7':'7alt'}; }
+    return P.slice(0,12);
+  }
+  if(form==='modal8'){
+    // So What 式：Dm7 4小节 - Eb 式半音上移 2小节 - 回来
+    const d=(I+2)%12;
+    for(let i=0;i<4;i++) push(d,'m7');
+    const up=(d+1)%12;
+    for(let i=0;i<2;i++) push(up,'m7');
+    for(let i=0;i<2;i++) push(d,'m7');
+    return P;
+  }
+  if(form==='aaba32'){
+    // A(8) A(8) B(8 bridge) A(8)
+    const A=()=>{
+      push(I, R()<0.7?'maj7':'6');
+      if(R()<0.7){ const v=iiVto((I+9)%12,'m7'); push(v[0].root,v[0].q); push(v[1].root,v[1].q); }
+      else { push((I+9)%12,'m7'); push((I+2)%12,'m7'); }
+      push((I+2)%12,'m7'); push((I+7)%12, R()<0.4?'7alt':'7');
+      push(I, 'maj7'); push((I+4)%12,'m7');
+      // turnaround
+      push((I+2)%12,'m7'); push((I+7)%12,'7');
+    };
+    A(); A();
+    // Bridge: III7 VI7 II7 V7 各两小节
+    [[3,'7'],[9,'7'],[2,'7'],[7,'7']].forEach(([off])=>{
+      const r=(I+off+12)%12;
+      push(r, R()<0.5?'7':'7alt'); push(r, R()<0.5?'7':'7alt');
+    });
+    A();
+    return P.slice(0,32);
+  }
+  // standard16 默认
+  push(I,'maj7');
+  let cur=I;
+  const targets=[ (I+5)%12, (I+3)%12, (I+10)%12, (I+7)%12, (I+9)%12, (I+2)%12 ];
+  let ti=0;
+  while(P.length<14){
+    const t=targets[ti%targets.length]; ti++;
+    if(R()<0.72){ const v=iiVto(t,'m7'); push(v[0].root,v[0].q); push(v[1].root,v[1].q); }
+    push(t, R()<0.3?'maj7':(R()<0.5?'m7':'7'));
+    if(P.length>13) break;
+  }
+  // turnaround 结尾
+  P.push({root:(I+2)%12,q:'m7'});
+  P.push({root:(I+7)%12,q: R()<0.5?'7':'7alt'});
+  const out=P.slice(0,14);
+  out.push({root:I,q:'maj7'},{root:(I+7)%12,q:'7alt'});
+  return out.slice(0,16);
+}
+
+/* ============ Walking Bass ============ */
+function bassMidi(pc){ let m=36+((pc%12)+12)%12; while(m>43) m-=12; while(m<31) m+=12; return m; }
+function genBass(prog){
+  const ev=[]; // {beat(midi quarter global), midi, dur}
+  for(let bar=0; bar<prog.length; bar++){
+    const cur=prog[bar], nxt=prog[(bar+1)%prog.length];
+    const curRoot=bassMidi(cur.root), nxtRoot=bassMidi(nxt.root);
+    const tones=QUALITY[cur.q].tones.map(iv=>curRoot+(iv%12)+(iv>=12?12:0));
+    const b0=bar*4;
+    ev.push({beat:b0, midi:curRoot, dur:0.95});
+    // beat 2: 和弦音 / 音阶经过
+    let n1 = R()<0.55 ? pick(tones.slice(1)) : curRoot + pick([2,-2,4,-4,3,-3,5]);
+    // beat 3: 换一个和弦音
+    let n2 = pick(tones.filter(t=>t!==n1));
+    if(n2===undefined) n2=curRoot+7;
+    // beat 4: 70% 半音趋近下小节根音
+    let n3;
+    const r=R();
+    if(r<0.7){ n3 = nxtRoot + (R()<0.5?1:-1); }
+    else if(r<0.88){ n3 = nxtRoot + pick([2,-2]); }
+    else { n3 = pick(tones); }
+    // 钳到合理音域
+    [n1,n2,n3]=[n1,n2,n3].map(m=>{while(m>48)m-=12;while(m<28)m+=12;return m});
+    ev.push({beat:b0+1,midi:Math.round(n1),dur:0.95});
+    ev.push({beat:b0+2,midi:Math.round(n2),dur:0.95});
+    ev.push({beat:b0+3,midi:Math.round(n3),dur:0.95});
+  }
+  return ev;
+}
+
+/* ============ 钢琴 Comping ============ */
+const COMP_PATTERNS=[
+  [0.5,2,3.5],[0,1.5,2.5],[1.5,2.5,3.5],[0,2,3],[1,2.5],[0.5,1.5,3],[2,3.5],[0.5,3],
+  [1.5,3.5],[0,1,2,3]
+];
+function pianoVoicing(rootPc,q){
+  // rootless voicing, 中央C附近
+  const base=60+(((rootPc-0)%12+12)%12);
+  const R0=base>66?base-12:base;
+  const map={
+    'maj7':[4,7,11,14+7], 'm7':[3,7,10,14], '7':[4,10,13,14+6],
+    '7alt':[4,8,10,13], 'm7b5':[3,6,10,14], 'dim7':[3,6,9,12], '6':[4,7,9,14]
+  };
+  const ivs=map[q]||map['7'];
+  return ivs.map(iv=>R0+iv-12+12).map(m=>m>72?m-12:m);
+}
+function genComping(prog){
+  const ev=[];
+  for(let bar=0;bar<prog.length;bar++){
+    const pat=pick(COMP_PATTERNS);
+    const density=0.55+R()*0.35;
+    for(const b of pat){
+      if(R()>density) continue;
+      if(R()<0.12) continue; // 留白
+      ev.push({beat:bar*4+b, midi:pianoVoicing(prog[bar].root,prog[bar].q), dur:0.5+R()*0.4, vel:0.45+R()*0.35});
+    }
+  }
+  return ev;
+}
+
+/* ============ 鼓 ============ */
+function genDrums(bars){
+  const ev=[]; // {beat,type,vel}
+  for(let bar=0;bar<bars;bar++){
+    const b0=bar*4;
+    // Ride: spang-a-lang: 强拍 + swing反拍
+    for(let q=0;q<4;q++){
+      ev.push({beat:b0+q,type:'ride',vel:q===0?1:0.75});
+      if(!(q===3&&R()<0.3)) ev.push({beat:b0+q+0.5,type:'ride',vel:0.5+R()*0.2}); // 反拍稍后会被 swing 推迟
+    }
+    // feather kick 1,3; hat 2,4
+    ev.push({beat:b0,type:'kick',vel:0.4}); ev.push({beat:b0+2,type:'kick',vel:0.35});
+    ev.push({beat:b0+1,type:'hat',vel:0.8}); ev.push({beat:b0+3,type:'hat',vel:0.9});
+    // snare comping
+    if(R()<0.5) ev.push({beat:b0+pick([0.5,1.5,2.5,3.5]),type:'snare',vel:0.4+R()*0.3});
+    if(R()<0.22) ev.push({beat:b0+pick([0.5,1.5,2.5,3.5]),type:'snare',vel:0.3});
+    // 每8小节加花
+    if((bar+1)%8===0&&R()<0.8){
+      ev.push({beat:b0+3,type:'snare',vel:0.6});
+      ev.push({beat:b0+3.5,type:'snare',vel:0.7});
+    }
+  }
+  return ev;
+}
+
+/* ============ 即兴旋律 ============ */
+const BLUES_LICKS=[
+  [0,-2,-4,-5,-4,-2],[0,3,5,6,5,3],[10,12,15,16,15,12],[7,10,12,13,12,10],[5,3,0,-2,0]
+];
+function scaleNotes(rootPc,q){
+  const sc=QUALITY[q]?QUALITY[q].scale:QUALITY['7'].scale;
+  const out=[];
+  for(let oct=0;oct<3;oct++) for(const iv of sc) out.push(rootPc+iv+oct*12);
+  return out;
+}
+function genMelody(prog, opts){
+  const bluesy=document.getElementById('bluesy').checked;
+  const ev=[]; let motif=null;
+  let curOct=72+ri(-2,3);
+  const clamp=m=>Math.max(62,Math.min(86,m));
+  for(let bar=0;bar<prog.length;bar++){
+    const ch=prog[bar];
+    const tones=QUALITY[ch.q].tones.map(t=>ch.root+t);
+    const scale=scaleNotes(ch.root,ch.q);
+    const b0=bar*4;
+    // 乐句呼吸：每4小节的第4小节 40% 大休止
+    if(bar%4===3&&R()<0.4){ if(R()<0.5) ev.push({beat:b0+pick([0,1,2]),midi:clamp(pick(tones)+12+12),dur:1.6,vel:0.8}); continue; }
+    // 前两小节写动机
+    if(bar<2&&!motif){
+      motif=[];
+      let t=clamp(pick(tones)+24);
+      let pos= R()<0.5?0:0.5;
+      const len=ri(4,6);
+      for(let i=0;i<len;i++){
+        const step=pick([0,0,2,-2,1,-1,4,-3,5]);
+        // 70% 和弦音/ tensions
+        let m = R()<0.7 ? clamp(pick(tones)+24+pick([0,12])) : clamp(t+step);
+        if(bluesy&&R()<0.18) m-=1; // 蓝调降音
+        const dur=pick([0.5,0.5,0.5,1,1,1.5]);
+        motif.push({off:pos,midi:m,dur,vel:0.65+R()*0.3});
+        pos+=dur+(R()<0.25?0.5:0);
+        if(pos>=3.6) break;
+        t=m;
+      }
+      motif.forEach(n=>ev.push({beat:b0+n.off,midi:n.midi,dur:n.dur,vel:n.vel}));
+      curOct=motif[motif.length-1].midi;
+      continue;
+    }
+    if(motif&&R()<0.6){
+      // 发展动机：移位到当前和弦 + 节奏错位
+      const shift=(ch.root-prog[Math.max(0,bar-1)].root);
+      const offShift=pick([0,0.5,-0.5,1]);
+      for(const n of motif){
+        if(R()<0.2) continue; // 省略音 = 爵士
+        let m=n.midi+shift;
+        // 拉回当前和弦音附近
+        if(R()<0.5){
+          let best=tones[0],bd=99;
+          for(const t of [...tones,...tones.map(x=>x+12)]){
+            for(const o of [12,24]){
+              const d=Math.abs((t+o)-m); if(d<bd){bd=d;best=t+o}
+            }
+          }
+          m=best;
+        }
+        if(bluesy&&R()<0.22) m = R()<0.5? m+1 : m-1; // 包围/趋近
+        ev.push({beat:b0+n.off+offShift,midi:clamp(m),dur:n.dur,vel:n.vel});
+      }
+      // 动机尾巴加花
+      if(R()<0.5){
+        const lick=pick(BLUES_LICKS);
+        let p=b0+2.5, base=clamp(pick(tones)+24);
+        for(const iv of lick.slice(0,ri(3,5))){
+          ev.push({beat:p,midi:clamp(base+iv),dur:0.5,vel:0.7}); p+=0.5;
+          if(p>=b0+4) break;
+        }
+      }
+    } else {
+      // 全新材料：琶音 / 音阶跑 / 长音
+      let pos = R()<0.25?0:(R()<0.5?0.5:0);
+      let m = clamp(pick(tones)+24);
+      const notesN=ri(3,7);
+      for(let i=0;i<notesN;i++){
+        const r=R();
+        if(r<0.15){ pos+=0.5; continue; } // 休止
+        if(r<0.5){ // 和弦琶音
+          m=clamp(pick(tones)+24+pick([0,12]));
+        } else if(r<0.78){ // 音阶
+          const cand=scale.map(s=>s+48).filter(x=>Math.abs(x-m)<=4);
+          m=clamp(cand.length?pick(cand):m+pick([2,-2,1,-1]));
+        } else { // 半音趋近
+          const target=clamp(pick(tones)+24);
+          ev.push({beat:pos+b0,midi:clamp(target+(R()<0.5?1:-1)),dur:0.5,vel:0.6});
+          pos+=0.5; m=target;
+          if(pos>=4) break;
+        }
+        if(bluesy&&R()<0.15) m-=1;
+        // 25% 提前出现下一小节的音（anticipation，很爵）
+        let bt=b0+pos, dd=pick([0.5,0.5,1]);
+        if(R()<0.25&&pos>=3){ bt=b0+pos; }
+        ev.push({beat:bt,midi:m,dur:dd,vel:0.6+R()*0.35});
+        pos+=dd+(R()<0.2?0.5:0);
+        if(pos>=3.8) break;
+      }
+      // 偶尔长音收尾
+      if(R()<0.3) ev.push({beat:b0+3,midi:clamp(pick(tones)+24),dur:1,vel:0.75});
+      curOct=m;
+    }
+    // 新动机 Accumulate：偶尔用本小节覆盖 motif
+    if(R()<0.25){
+      const mine=ev.filter(e=>e.beat>=b0&&e.beat<b0+4).map(e=>({off:+(e.beat-b0).toFixed(2),midi:e.midi,dur:e.dur,vel:e.vel}));
+      if(mine.length>=3) motif=mine.slice(0,6);
+    }
+  }
+  return ev.sort((a,b)=>a.beat-b.beat);
+}
+
+/* ============ 音频引擎 ============ */
+let AC=null, master, analyser, verb, wetGain, noiseBuf;
+let buses={};
+function initAudio(){
+  if(AC) return;
+  AC=new (window.AudioContext||window.webkitAudioContext)();
+  master=AC.createGain(); master.gain.value=0.9;
+  const comp=AC.createDynamicsCompressor();
+  analyser=AC.createAnalyser(); analyser.fftSize=256;
+  master.connect(comp); comp.connect(analyser); analyser.connect(AC.destination);
+  // reverb
+  verb=AC.createConvolver(); wetGain=AC.createGain(); wetGain.gain.value=0.28;
+  const len=AC.sampleRate*1.8, ir=AC.createBuffer(2,len,AC.sampleRate);
+  for(let c=0;c<2;c++){const d=ir.getChannelData(c);for(let i=0;i<len;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/len,2.4);}
+  verb.buffer=ir; verb.connect(wetGain); wetGain.connect(master);
+  for(const k of ['piano','bass','drum','lead']){
+    const g=AC.createGain(); g.connect(master);
+    const s=AC.createGain(); s.gain.value= k==='drum'?0.12:0.35; g.connect(verb); // 发送量经 wet 统一？简化：直连 convolver 输入需连 verb
+    // 修正：g -> verb
+    try{g.disconnect(verb)}catch(e){}
+    g.connect(master);
+    const send=AC.createGain(); send.gain.value=0.3; g.connect(send); send.connect(verb);
+    buses[k]=g;
+  }
+  // noise buffer
+  noiseBuf=AC.createBuffer(1,AC.sampleRate*1,AC.sampleRate);
+  const nd=noiseBuf.getChannelData(0);
+  for(let i=0;i<nd.length;i++) nd[i]=Math.random()*2-1;
+}
+function setMix(){
+  if(!AC) return;
+  buses.piano.gain.value=document.getElementById('vPiano').value/100*0.9;
+  buses.bass.gain.value=document.getElementById('vBass').value/100*1.0;
+  buses.drum.gain.value=document.getElementById('vDrum').value/100*0.9;
+  buses.lead.gain.value=document.getElementById('vLead').value/100*1.0;
+}
+function env(g,t,a,peak,dur,rel=0.12){
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(Math.max(0.001,peak),t+a);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur+rel);
+}
+function playBass(midi,t,dur){
+  const f=midiHz(midi);
+  const o1=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain(),fl=AC.createBiquadFilter();
+  o1.type='sine';o1.frequency.value=f;o2.type='triangle';o2.frequency.value=f;
+  fl.type='lowpass';fl.frequency.value=700;
+  const g2=AC.createGain();g2.gain.value=0.35;
+  o1.connect(fl);o2.connect(g2);g2.connect(fl);fl.connect(g);g.connect(buses.bass);
+  env(g,t,0.01,0.75,dur,0.08);
+  o1.start(t);o2.start(t);o1.stop(t+dur+0.3);o2.stop(t+dur+0.3);
+}
+function playPiano(midis,t,dur,vel){
+  for(const m of midis){
+    const f=midiHz(m);
+    const o1=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain(),fl=AC.createBiquadFilter();
+    o1.type='triangle';o1.frequency.value=f;o2.type='sine';o2.frequency.value=f*2.001;
+    const g2=AC.createGain();g2.gain.value=0.25;o2.connect(g2);g2.connect(fl);
+    fl.type='lowpass';fl.frequency.value=2600;
+    o1.connect(fl);fl.connect(g);g.connect(buses.piano);
+    env(g,t,0.005,vel*0.22,Math.min(1.4,dur+0.25),0.25);
+    o1.start(t);o2.start(t);o1.stop(t+dur+0.6);o2.stop(t+dur+0.6);
+  }
+}
+function playLead(midi,t,dur,vel,voice){
+  const f=midiHz(midi);
+  const g=AC.createGain(); g.connect(buses.lead);
+  const send=AC.createGain(); send.gain.value=0.4; g.connect(send); send.connect(verb);
+  let oscs=[];
+  const mk=(type,freq,amt)=>{const o=AC.createOscillator();o.type=type;o.frequency.value=freq;const og=AC.createGain();og.gain.value=amt;o.connect(og);og.connect(flt);oscs.push(o);return o};
+  const flt=AC.createBiquadFilter();
+  flt.connect(g);
+  let atk=0.06, cutoff=2000, vibR=5.5, vibD=0;
+  if(voice==='sax'){flt.type='lowpass';cutoff=1900;atk=0.07;vibD=14;}
+  if(voice==='trumpet'){flt.type='lowpass';cutoff=3200;atk=0.035;vibD=10;vibR=6;}
+  if(voice==='guitar'){flt.type='lowpass';cutoff=2400;atk=0.008;vibD=0;}
+  if(voice==='vibes'){flt.type='lowpass';cutoff=4000;atk=0.01;vibD=0;}
+  flt.frequency.value=cutoff; flt.Q.value=0.6;
+  if(voice==='vibes'){
+    mk('sine',f,0.9); mk('sine',f*4,0.12);
+  } else if(voice==='guitar'){
+    mk('triangle',f,0.9); mk('sine',f*2,0.2);
+  } else if(voice==='trumpet'){
+    mk('sawtooth',f,0.55); mk('square',f,0.18);
+  } else {
+    mk('sawtooth',f,0.7); mk('sine',f,0.4);
+  }
+  // vibrato
+  if(vibD>0){
+    const lfo=AC.createOscillator(),lg=AC.createGain();
+    lfo.frequency.value=vibR; lg.gain.value=0;
+    lg.gain.setValueAtTime(0,t); lg.gain.linearRampToValueAtTime(vibD,t+Math.min(0.35,dur*0.5));
+    lfo.connect(lg);
+    oscs.forEach(o=>lg.connect(o.frequency));
+    lfo.start(t); lfo.stop(t+dur+0.4);
+  }
+  if(voice==='vibes'){
+    env(g,t,atk,vel*0.5,dur,1.1);
+  } else if(voice==='guitar'){
+    env(g,t,atk,vel*0.55,dur*0.9,0.18);
+  } else {
+    env(g,t,atk,vel*0.5,dur,0.14);
+  }
+  oscs.forEach(o=>{o.start(t);o.stop(t+dur+1.4)});
+}
+function noiseHit(t,{type='highpass',freq=7000,dur=0.08,peak=0.3,Q=1}){
+  const src=AC.createBufferSource();src.buffer=noiseBuf;src.loop=true;
+  const f=AC.createBiquadFilter();f.type=type;f.frequency.value=freq;f.Q.value=Q;
+  const g=AC.createGain();src.connect(f);f.connect(g);g.connect(buses.drum);
+  env(g,t,0.002,peak,dur,0.03);
+  src.start(t);src.stop(t+dur+0.2);
+}
+function playRide(t,vel){
+  // 金属 ping：双正弦 + 高频噪声
+  [[5230,0.10],[7390,0.07],[9320,0.05]].forEach(([f,a])=>{
+    const o=AC.createOscillator(),g=AC.createGain();
+    o.type='sine';o.frequency.value=f*(1+(Math.random()-0.5)*0.01);
+    o.connect(g);g.connect(buses.drum);
+    env(g,t,0.001,vel*a,0.22,0.08);
+    o.start(t);o.stop(t+0.5);
+  });
+  noiseHit(t,{freq:6500,dur:0.05,peak:vel*0.12});
+}
+function playHat(t,vel){ noiseHit(t,{freq:8500,dur:0.045,peak:vel*0.22}); }
+function playSnare(t,vel){
+  noiseHit(t,{type:'bandpass',freq:1900,dur:0.11,peak:vel*0.4,Q:0.9});
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type='triangle';o.frequency.setValueAtTime(210,t);o.frequency.exponentialRampToValueAtTime(150,t+0.09);
+  o.connect(g);g.connect(buses.drum);env(g,t,0.001,vel*0.3,0.09,0.03);
+  o.start(t);o.stop(t+0.25);
+}
+function playKick(t,vel){
+  const o=AC.createOscillator(),g=AC.createGain();
+  o.type='sine';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(44,t+0.11);
+  o.connect(g);g.connect(buses.drum);env(g,t,0.001,vel*0.7,0.11,0.04);
+  o.start(t);o.stop(t+0.3);
+}
+
+/* ============ 调度器 ============ */
+let song=null, isPlaying=false, schedTimer=null, startBeatTime=0, nextBeatIdx=0, flatEvents=[], startCtxTime=0;
+let curChorus=1;
+function buildSong(seed){
+  R=mulberry32(seed>>>0);
+  let key=parseInt(document.getElementById('keySel').value,10);
+  if(key<0) key=ri(0,11);
+  const form=document.getElementById('formSel').value;
+  const prog=generateProgression(key,form);
+  // 为每段即兴单独生成声部
+  const bass=genBass(prog), comp=genComping(prog), drums=genDrums(prog.length), mel=genMelody(prog);
+  song={seed,key,form,prog,bass,comp,drums,mel};
+  renderLeadSheet();
+  return song;
+}
+function regenChorus(){
+  const keepR=R;
+  R=mulberry32((song.seed+curChorus*7919)>>>0);
+  song.bass=genBass(song.prog);
+  song.comp=genComping(song.prog);
+  song.mel=genMelody(song.prog);
+  R=keepR;
+  flatten();
+}
+function flatten(){
+  flatEvents=[];
+  for(const e of song.bass) flatEvents.push({beat:e.beat,kind:'bass',...e});
+  for(const e of song.comp) flatEvents.push({beat:e.beat,kind:'piano',...e});
+  for(const e of song.drums) flatEvents.push({beat:e.beat,kind:'drum',...e});
+  for(const e of song.mel) flatEvents.push({beat:e.beat,kind:'lead',...e});
+  flatEvents.sort((a,b)=>a.beat-b.beat);
+}
+function secPerBeat(){return 60/parseFloat(document.getElementById('bpm').value)}
+function swingRatio(){return parseFloat(document.getElementById('swing').value)/100}
+function beatToTime(beat){
+  let t=startCtxTime+beat*secPerBeat();
+  const eighth=Math.round(beat*2);
+  if(eighth%2===1){ t+=(swingRatio()-0.5)*secPerBeat(); }
+  return t;
+}
+function schedulerTick(){
+  if(!isPlaying) return;
+  const ahead=0.18;
+  while(true){
+    if(nextBeatIdx>=flatEvents.length){
+      // 一轮结束
+      const totalBeats=song.prog.length*4;
+      if(document.getElementById('varyChorus').checked){ curChorus++; regenChorus(); }
+      startCtxTime+=totalBeats*secPerBeat();
+      nextBeatIdx=0;
+      // swing 变化时仍连续
+      continue;
+    }
+    const ev=flatEvents[nextBeatIdx];
+    const t=beatToTime(ev.beat);
+    if(t>AC.currentTime+ahead) break;
+    if(t>=AC.currentTime-0.05){
+      const tt=Math.max(t,AC.currentTime+0.01);
+      const hum=(Math.random()-0.5)*0.008;
+      try{
+        if(ev.kind==='bass') playBass(ev.midi,tt+hum,ev.dur*secPerBeat());
+        else if(ev.kind==='piano') playPiano(ev.midi,tt+hum,ev.dur*secPerBeat(),ev.vel);
+        else if(ev.kind==='lead') playLead(ev.midi,tt+hum,Math.max(0.18,ev.dur*secPerBeat()*0.92),ev.vel,document.getElementById('voiceSel').value);
+        else if(ev.kind==='drum'){
+          if(ev.type==='ride') playRide(tt+hum,ev.vel);
+          else if(ev.type==='hat') playHat(tt+hum,ev.vel);
+          else if(ev.type==='snare') playSnare(tt+hum,ev.vel);
+          else if(ev.type==='kick') playKick(tt+hum,ev.vel);
+        }
+      }catch(e){console.warn(e)}
+    }
+    nextBeatIdx++;
+  }
+  updateNowPlaying();
+}
+function currentBeat(){
+  if(!isPlaying) return 0;
+  const b=(AC.currentTime-startCtxTime)/secPerBeat();
+  const total=song.prog.length*4;
+  return ((b%total)+total)%total;
+}
+function updateNowPlaying(){
+  if(!song) return;
+  const b=currentBeat(), bar=Math.floor(b/4)%song.prog.length;
+  const ch=song.prog[bar];
+  document.getElementById('nowPlaying').innerHTML=
+    `<strong>${chordName(ch.root,ch.q)}</strong> <span class="tag">${romanOf(song.key,ch)} / 第 ${bar+1} 小节</span>
+     <span class="tag">Chorus ${curChorus}</span> <span class="tag">${pcName(song.key)} 调</span>
+     <span class="tag">${Math.round(parseFloat(document.getElementById('bpm').value))} BPM</span><br>
+     下一和弦：${chordName(song.prog[(bar+1)%song.prog.length].root,song.prog[(bar+1)%song.prog.length].q)} · 主奏 ${document.getElementById('voiceSel').selectedOptions[0].text}`;
+  document.querySelectorAll('.bar').forEach((el,i)=>el.classList.toggle('active',i===bar));
+}
+
+/* ============ UI ============ */
+function renderLeadSheet(){
+  const bars=document.getElementById('bars'); bars.innerHTML='';
+  song.prog.forEach((ch,i)=>{
+    const d=document.createElement('div');d.className='bar';
+    d.innerHTML=`<div class="n">${i+1}</div><div class="ch">${chordName(ch.root,ch.q)}</div><div class="rm">${romanOf(song.key,ch)}</div>`;
+    bars.appendChild(d);
+  });
+  const formName=document.getElementById('formSel').selectedOptions[0].text;
+  document.getElementById('tags').innerHTML=
+    `<span class="tag">Seed ${song.seed}</span><span class="tag">${pcName(song.key)} 调</span><span class="tag">${formName}</span><span class="tag">${song.prog.length} 小节循环</span>`;
+  const blues=song.form==='blues12'?'十二小节布鲁斯骨架 + Bird 式 ii-V 替代':song.form==='aaba32'?'AABA 32 小节 + Bridge III-VI-II-V':'ii-V 游走 + 结尾 Turnaround';
+  document.getElementById('explain').innerHTML=
+    `本曲：<b style="color:#fff">${pcName(song.key)} 调 · ${song.prog.map(c=>chordName(c.root,c.q)).slice(0,8).join(' – ')}${song.prog.length>8?' …':''}</b><br>手法：${blues}。即兴动机共 ${song.mel.length} 个音符，Walking Bass ${song.bass.length} 个四分音，钢琴 Comping ${song.comp.length} 个反拍点缀。换个种子 = 换一首歌。`;
+}
+async function togglePlay(){
+  initAudio(); setMix();
+  if(AC.state==='suspended') await AC.resume();
+  if(!isPlaying){
+    if(!song) buildSong(parseInt(document.getElementById('seed').value,10)||12345);
+    flatten();
+    isPlaying=true; curChorus=curChorus||1;
+    startCtxTime=AC.currentTime+0.12; nextBeatIdx=0;
+    schedTimer=setInterval(schedulerTick,25);
+    document.getElementById('playBtn').textContent='⏸ 停止 / Stop';
+    document.getElementById('vinyl').classList.add('playing');
+  } else {
+    isPlaying=false; clearInterval(schedTimer);
+    document.getElementById('playBtn').textContent='▶ 播放 / Play';
+    document.getElementById('vinyl').classList.remove('playing');
+  }
+}
+// 频谱
+function drawScope(){
+  const cv=document.getElementById('scope'),ctx=cv.getContext('2d');
+  const loop=()=>{
+    requestAnimationFrame(loop);
+    ctx.clearRect(0,0,cv.width,cv.height);
+    if(!AC||!analyser){ctx.fillStyle='#5b648f';ctx.font='20px sans-serif';ctx.fillText('▶ 按播放，频谱与爵士一起摇摆…',24,76);return;}
+    const data=new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteFrequencyData(data);
+    const n=64,w=cv.width/n;
+    for(let i=0;i<n;i++){
+      const v=data[Math.floor(i*data.length/n/1.4)]/255;
+      const h=8+v*110;
+      const g=ctx.createLinearGradient(0,cv.height-h,0,cv.height);
+      g.addColorStop(0,'#f5d67b');g.addColorStop(1,'#7c4dff');
+      ctx.fillStyle=g;
+      if(ctx.roundRect){ctx.beginPath();ctx.roundRect(i*w+3,cv.height-h,w-6,h,5);ctx.fill();}
+      else{ctx.fillRect(i*w+3,cv.height-h,w-6,h);}
+    }
+  };
+  loop();
+}
+
+/* MIDI 导出（Type 0，含 tempo/和弦+贝斯+旋律） */
+function vlq(n){let b=[n&0x7f],v=n>>7;while(v>0){b.unshift((v&0x7f)|0x80);v>>=7}return b}
+function midiExport(){
+  if(!song){alert('先生成一首歌吧！');return}
+  const PPQ=480, spb=secPerBeat();
+  const tempo=Math.round(60000000/parseFloat(document.getElementById('bpm').value));
+  let bytes=[];
+  const push=(...a)=>bytes.push(...a);
+  const note=(ch,midi,tick,durTick,vel)=>{
+    push(...vlq(tick),0x90|ch,midi,vel, ...vlq(durTick),0x80|ch,midi,0);
+  };
+  // 按绝对tick排序事件：简化顺序写入（同一track按tick递增需delta，这里先收集再排）
+  let evs=[];
+  song.comp.forEach(c=>c.midi.forEach(m=>evs.push({t:c.beat*PPQ/1*1,d:m,ch:0,vel:70})));
+  song.bass.forEach(b=>evs.push({t:b.beat*PPQ,d:b.midi,ch:1,vel:90}));
+  song.mel.forEach(m=>evs.push({t:m.beat*PPQ,d:m.midi,ch:2,vel:85}));
+  evs.sort((a,b)=>a.t-b.t);
+  let trk=[];
+  const tp=(...a)=>trk.push(...a);
+  tp(0x00,0xFF,0x03,0x0B, ...[...'RandomJazz'].map(c=>c.charCodeAt(0)));
+  tp(0x00,0xFF,0x51,0x03,(tempo>>16)&255,(tempo>>8)&255,tempo&255);
+  tp(0x00,0xC0,0x00, 0x00,0xC1,0x20, 0x00,0xC2,0x42);
+  let last=0;
+  const toTick=b=>Math.round(b*PPQ);
+  for(const e of evs){
+    const tk=toTick(e.t/PPQ), dur=Math.round(PPQ*0.9);
+    const delta=Math.max(0,tk-last);
+    trk.push(...vlq(delta),0x90|e.ch,e.d,Math.min(110,e.vel));
+    trk.push(...vlq(dur),0x80|e.ch,e.d,0);
+    last=tk+dur;
+  }
+  trk.push(0x00,0xFF,0x2F,0x00);
+  const head=[0x4D,0x54,0x68,0x64,0,0,0,6,0,0,0,1,(PPQ>>8)&255,PPQ&255,
+              0x4D,0x54,0x72,0x6B,(trk.length>>>24)&255,(trk.length>>>16)&255,(trk.length>>>8)&255,trk.length&255];
+  const blob=new Blob([new Uint8Array([...head,...trk])],{type:'audio/midi'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+  a.download=`random-jazz-${pcName(song.key)}-${song.seed}.mid`;a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+}
+
+document.getElementById('playBtn').onclick=togglePlay;
+document.getElementById('newSong').onclick=()=>{
+  const s=ri(1,999999);document.getElementById('seed').value=s;
+  const wasPlaying=isPlaying;
+  if(wasPlaying){isPlaying=false;clearInterval(schedTimer);document.getElementById('vinyl').classList.remove('playing');}
+  curChorus=1;buildSong(s);
+  if(wasPlaying) togglePlay();
+};
+document.getElementById('nextChorus').onclick=()=>{
+  if(!song) return; curChorus++; regenChorus(); renderLeadSheet();
+};
+document.getElementById('midiBtn').onclick=midiExport;
+document.getElementById('copyBtn').onclick=async()=>{
+  if(!song) return;
+  const s=song.prog.map((c,i)=>`|${i+1}. ${chordName(c.root,c.q)}`).join(' ');
+  try{await navigator.clipboard.writeText(`${pcName(song.key)}调 ${document.getElementById('formSel').selectedOptions[0].text}: `+song.prog.map(c=>chordName(c.root,c.q)).join(' | '));alert('和弦进行已复制，去排练吧！🎶')}catch(e){prompt('复制这段进行：',s)}
+};
+document.getElementById('diceSeed').onclick=()=>{document.getElementById('seed').value=ri(1,999999)};
+document.getElementById('bpm').oninput=e=>document.getElementById('bpmVal').textContent=e.target.value;
+document.getElementById('swing').oninput=e=>document.getElementById('swingVal').textContent=e.target.value;
+for(const id of ['vPiano','vBass','vDrum','vLead']){
+  document.getElementById(id).oninput=e=>{
+    document.getElementById(id+'Val').textContent=e.target.value+'%';setMix();
+  };
+}
+document.getElementById('keySel').onchange=e=>{
+  document.getElementById('keyVal').textContent=e.target.value==='-1'?'随机':pcName(+e.target.value);
+};
+document.getElementById('formSel').onchange=()=>{curChorus=1;buildSong(parseInt(document.getElementById('seed').value,10)||12345);if(isPlaying){flatten();}};
+document.getElementById('seed').onchange=e=>{curChorus=1;buildSong(parseInt(e.target.value,10)||12345);if(isPlaying){flatten();}};
+document.getElementById('voiceSel').onchange=()=>{if(song)updateNowPlaying()};
+
+// init
+buildSong(12345); flatten(); drawScope();
+</script>
+</body>
+</html>
